@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -79,6 +80,7 @@ async fn main() -> std::io::Result<()> {
     });
     HttpServer::new(move || {
         App::new()
+            .wrap(Cors::permissive())
             .app_data(state.clone())
             .service(index)
             .service(page_for_session)
