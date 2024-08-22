@@ -17,7 +17,7 @@ struct SessionState {
 
 #[get("/")]
 async fn index() -> String {
-    "Hello World".into()
+    "Missing session ID in URL".into()
 }
 
 #[get("/{session_id}")]
