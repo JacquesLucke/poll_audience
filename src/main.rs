@@ -1,4 +1,5 @@
 use actix_cors::Cors;
+use actix_web::http::header::{CacheControl, CacheDirective};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -25,7 +26,9 @@ async fn page_for_session(path: web::Path<String>, state: web::Data<AppState>) -
     let sessions = state.sessions.lock().unwrap();
     match sessions.get(&session_id) {
         None => HttpResponse::NotFound().body("Unknown Session\n"),
-        Some(session) => HttpResponse::Ok().body(session.page_content.clone()),
+        Some(session) => HttpResponse::Ok()
+            .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+            .body(session.page_content.clone()),
     }
 }
 
@@ -69,7 +72,9 @@ async fn responses(path: web::Path<String>, state: web::Data<AppState>) -> impl 
     let sessions = state.sessions.lock().unwrap();
     match sessions.get(&session_id) {
         None => HttpResponse::NotFound().json(Vec::<String>::new()),
-        Some(session) => HttpResponse::Ok().json(&session.responses),
+        Some(session) => HttpResponse::Ok()
+            .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+            .json(&session.responses),
     }
 }
 
@@ -88,7 +93,7 @@ async fn main() -> std::io::Result<()> {
             .service(respond)
             .service(responses)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }
