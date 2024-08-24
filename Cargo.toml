@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 actix-web = "4"
 actix-cors = "0.7.0"
+clap = { version = "4.5.16", features = ["derive"] }

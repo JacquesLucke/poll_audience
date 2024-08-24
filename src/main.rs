@@ -1,8 +1,19 @@
 use actix_cors::Cors;
 use actix_web::http::header::{CacheControl, CacheDirective};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use clap::Parser;
 use std::collections::HashMap;
 use std::sync::Mutex;
+
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Args {
+    #[arg(long, default_value = "0.0.0.0")]
+    host: String,
+
+    #[arg(long, default_value = "8080")]
+    port: u16,
+}
 
 type SessionID = String;
 
@@ -80,9 +91,12 @@ async fn responses(path: web::Path<String>, state: web::Data<AppState>) -> impl 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let args = Args::parse();
+
     let state = web::Data::new(AppState {
         sessions: Mutex::new(HashMap::new()),
     });
+    println!("Start server on http://{}:{}", args.host, args.port);
     HttpServer::new(move || {
         App::new()
             .wrap(Cors::permissive())
@@ -93,7 +107,7 @@ async fn main() -> std::io::Result<()> {
             .service(respond)
             .service(responses)
     })
-    .bind(("0.0.0.0", 8080))?
+    .bind((args.host, args.port))?
     .run()
     .await
 }
