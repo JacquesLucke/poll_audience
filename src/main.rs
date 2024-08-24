@@ -12,7 +12,7 @@ struct AppState {
 
 struct SessionState {
     page_content: String,
-    responses: Vec<String>,
+    response_by_user: HashMap<String, String>,
 }
 
 #[get("/")]
@@ -42,25 +42,25 @@ async fn set_page(
     let mut sessions = state.sessions.lock().unwrap();
     let session = sessions.entry(session_id).or_insert_with(|| SessionState {
         page_content: "".into(),
-        responses: Vec::new(),
+        response_by_user: HashMap::new(),
     });
     session.page_content = body;
-    session.responses.clear();
+    session.response_by_user.clear();
     "Page Updated\n"
 }
 
-#[post("/{session_id}/respond")]
+#[post("/{session_id}/respond/{user_id}")]
 async fn respond(
     body: String,
-    path: web::Path<String>,
+    path: web::Path<(String, String)>,
     state: web::Data<AppState>,
 ) -> impl Responder {
-    let session_id = path.into_inner();
+    let (session_id, user_id) = path.into_inner();
     let mut sessions = state.sessions.lock().unwrap();
     match sessions.get_mut(&session_id) {
         None => HttpResponse::NotFound().body("Unknown Session\n"),
         Some(session) => {
-            session.responses.push(body);
+            session.response_by_user.insert(user_id, body);
             HttpResponse::Ok().body("Responded\n")
         }
     }
@@ -74,7 +74,7 @@ async fn responses(path: web::Path<String>, state: web::Data<AppState>) -> impl 
         None => HttpResponse::NotFound().json(Vec::<String>::new()),
         Some(session) => HttpResponse::Ok()
             .insert_header(CacheControl(vec![CacheDirective::NoCache]))
-            .json(&session.responses),
+            .json(&session.response_by_user),
     }
 }
 
