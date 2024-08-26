@@ -9,3 +9,5 @@ actix-cors = "0.7.0"
 clap = { version = "4.5.16", features = ["derive"] }
 derive_more = { version = "1.0.0", features = ["full"] }
 serde = { version = "1.0.209", features = ["serde_derive"] }
+chrono = "0.4.38"
+tokio = "1.39.3"
