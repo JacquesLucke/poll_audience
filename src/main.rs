@@ -95,8 +95,8 @@ struct SessionState {
 }
 
 #[get("/")]
-async fn index() -> String {
-    "Missing session ID in URL".into()
+async fn index() -> impl Responder {
+    "A session ID is necessary."
 }
 
 #[get("/{session_id}")]
