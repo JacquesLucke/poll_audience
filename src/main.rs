@@ -18,7 +18,11 @@ struct Args {
 type SessionID = String;
 
 struct AppState {
-    sessions: Mutex<HashMap<SessionID, SessionState>>,
+    sessions: Mutex<Sessions>,
+}
+
+struct Sessions {
+    state_by_id: HashMap<SessionID, SessionState>,
 }
 
 struct SessionState {
@@ -35,7 +39,7 @@ async fn index() -> String {
 async fn page_for_session(path: web::Path<String>, state: web::Data<AppState>) -> impl Responder {
     let session_id = path.into_inner();
     let sessions = state.sessions.lock().unwrap();
-    match sessions.get(&session_id) {
+    match sessions.state_by_id.get(&session_id) {
         None => HttpResponse::NotFound().body("Unknown Session\n"),
         Some(session) => HttpResponse::Ok()
             .insert_header(CacheControl(vec![CacheDirective::NoCache]))
@@ -51,13 +55,29 @@ async fn set_page(
 ) -> impl Responder {
     let session_id = path.into_inner();
     let mut sessions = state.sessions.lock().unwrap();
-    let session = sessions.entry(session_id).or_insert_with(|| SessionState {
-        page_content: "".into(),
-        response_by_user: HashMap::new(),
-    });
+    let session = sessions
+        .state_by_id
+        .entry(session_id)
+        .or_insert_with(|| SessionState {
+            page_content: "".into(),
+            response_by_user: HashMap::new(),
+        });
     session.page_content = body;
     session.response_by_user.clear();
     "Page Updated\n"
+}
+
+#[post("/{session_id}/reset_responses")]
+async fn reset(path: web::Path<String>, state: web::Data<AppState>) -> impl Responder {
+    let session_id = path.into_inner();
+    let mut sessions = state.sessions.lock().unwrap();
+    match sessions.state_by_id.get_mut(&session_id) {
+        None => HttpResponse::Ok(),
+        Some(session) => {
+            session.response_by_user.clear();
+            HttpResponse::Ok()
+        }
+    }
 }
 
 #[post("/{session_id}/respond/{user_id}")]
@@ -68,7 +88,7 @@ async fn respond(
 ) -> impl Responder {
     let (session_id, user_id) = path.into_inner();
     let mut sessions = state.sessions.lock().unwrap();
-    match sessions.get_mut(&session_id) {
+    match sessions.state_by_id.get_mut(&session_id) {
         None => HttpResponse::NotFound().body("Unknown Session\n"),
         Some(session) => {
             session.response_by_user.insert(user_id, body);
@@ -81,7 +101,7 @@ async fn respond(
 async fn responses(path: web::Path<String>, state: web::Data<AppState>) -> impl Responder {
     let session_id = path.into_inner();
     let sessions = state.sessions.lock().unwrap();
-    match sessions.get(&session_id) {
+    match sessions.state_by_id.get(&session_id) {
         None => HttpResponse::NotFound().json(Vec::<String>::new()),
         Some(session) => HttpResponse::Ok()
             .insert_header(CacheControl(vec![CacheDirective::NoCache]))
@@ -94,7 +114,9 @@ async fn main() -> std::io::Result<()> {
     let args = Args::parse();
 
     let state = web::Data::new(AppState {
-        sessions: Mutex::new(HashMap::new()),
+        sessions: Mutex::new(Sessions {
+            state_by_id: HashMap::new(),
+        }),
     });
     println!("Start server on http://{}:{}", args.host, args.port);
     HttpServer::new(move || {
@@ -106,6 +128,7 @@ async fn main() -> std::io::Result<()> {
             .service(set_page)
             .service(respond)
             .service(responses)
+            .service(reset)
     })
     .bind((args.host, args.port))?
     .run()
