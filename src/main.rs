@@ -99,7 +99,7 @@ async fn index() -> impl Responder {
     "A session ID is necessary."
 }
 
-#[get("/{session_id}")]
+#[get("/s/{session_id}")]
 async fn page_for_session(
     path: web::Path<String>,
     state: web::Data<AppState>,
@@ -115,7 +115,7 @@ async fn page_for_session(
         .body(session.page_content.clone()))
 }
 
-#[post("/{session_id}/set_page")]
+#[post("/s/{session_id}/set_page")]
 async fn set_page(
     body: String,
     path: web::Path<String>,
@@ -140,7 +140,7 @@ async fn set_page(
     Ok(HttpResponse::Ok())
 }
 
-#[post("/{session_id}/reset_responses")]
+#[post("/s/{session_id}/reset_responses")]
 async fn reset(
     path: web::Path<String>,
     state: web::Data<AppState>,
@@ -156,7 +156,7 @@ async fn reset(
     Ok(HttpResponse::Ok())
 }
 
-#[post("/{session_id}/respond/{user_id}")]
+#[post("/s/{session_id}/respond/{user_id}")]
 async fn respond(
     body: String,
     path: web::Path<(String, String)>,
@@ -175,7 +175,7 @@ async fn respond(
     Ok(HttpResponse::Ok())
 }
 
-#[get("/{session_id}/responses")]
+#[get("/s/{session_id}/responses")]
 async fn responses(
     path: web::Path<String>,
     state: web::Data<AppState>,
@@ -189,6 +189,22 @@ async fn responses(
     Ok(HttpResponse::Ok()
         .insert_header(CacheControl(vec![CacheDirective::NoCache]))
         .json(&session.response_by_user))
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct Stats {
+    num_sessions: usize,
+}
+
+#[get("/stats")]
+async fn stats(state: web::Data<AppState>) -> Result<impl Responder, AppError> {
+    let sessions = state.sessions.lock().map_err(|_| AppError::ServerError)?;
+    let stats = Stats {
+        num_sessions: sessions.state_by_id.len(),
+    };
+    Ok(HttpResponse::Ok()
+        .insert_header(CacheControl(vec![CacheDirective::NoCache]))
+        .json(stats))
 }
 
 async fn periodically_clear_old_sessions(state: web::Data<AppState>) {
@@ -230,6 +246,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Cors::permissive())
             .app_data(state.clone())
             .service(index)
+            .service(stats)
             .service(page_for_session)
             .service(set_page)
             .service(respond)
